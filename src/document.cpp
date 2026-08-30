@@ -1,5 +1,6 @@
 #include "html.h"
 #include "document.h"
+#include <chrono>
 #include "document_container.h"
 #include "el_anchor.h"
 #include "el_base.h"
@@ -108,6 +109,7 @@ namespace litehtml
 
         m_root = root;
 
+        auto t0 = std::chrono::high_resolution_clock::now();
         if(master_styles != "")
         {
             m_master_css.parse_css_stylesheet(master_styles, "", shared_from_this());
@@ -118,6 +120,7 @@ namespace litehtml
             m_user_css.parse_css_stylesheet(user_styles, "", shared_from_this());
             m_user_css.sort_selectors();
         }
+        auto t1 = std::chrono::high_resolution_clock::now();
 
         // Let's process created elements tree
         if(m_root)
@@ -128,6 +131,7 @@ namespace litehtml
 
             // apply master CSS
             m_root->apply_stylesheet(m_master_css);
+            auto t2 = std::chrono::high_resolution_clock::now();
 
             // parse elements attributes
             m_root->parse_attributes();
@@ -144,20 +148,24 @@ namespace litehtml
                 }
                 m_styles.parse_css_stylesheet(css.text, css.baseurl, shared_from_this(), media);
             }
+            auto t3 = std::chrono::high_resolution_clock::now();
             // Sort css selectors using CSS rules.
             m_styles.sort_selectors();
+            auto t4 = std::chrono::high_resolution_clock::now();
 
             // Apply media features.
             update_media_lists(m_media);
 
             // Apply parsed styles.
             m_root->apply_stylesheet(m_styles);
+            auto t5 = std::chrono::high_resolution_clock::now();
 
             // Apply user styles if any
             m_root->apply_stylesheet(m_user_css);
 
             // Initialize element::m_css
             m_root->compute_styles();
+            auto t6 = std::chrono::high_resolution_clock::now();
 
             // Create rendering tree
             m_root_render = m_root->create_render_item(nullptr);
@@ -173,6 +181,18 @@ namespace litehtml
             {
                 m_root_render = m_root_render->init();
             }
+            auto t7 = std::chrono::high_resolution_clock::now();
+
+            double masterParse = std::chrono::duration<double, std::milli>(t1 - t0).count();
+            double applyMaster = std::chrono::duration<double, std::milli>(t2 - t1).count();
+            double linkedParse = std::chrono::duration<double, std::milli>(t3 - t2).count();
+            double sortSel     = std::chrono::duration<double, std::milli>(t4 - t3).count();
+            double applyStyles = std::chrono::duration<double, std::milli>(t5 - t4).count();
+            double computeSt   = std::chrono::duration<double, std::milli>(t6 - t5).count();
+            double renderTree  = std::chrono::duration<double, std::milli>(t7 - t6).count();
+
+            printf("[EchoLingo][Perf][DocFinalize] masterParse=%.1fms applyMaster=%.1fms linkedParse=%.1fms sort=%.1fms applyStyles=%.1fms compute=%.1fms renderTree=%.1fms\n",
+                   masterParse, applyMaster, linkedParse, sortSel, applyStyles, computeSt, renderTree);
         }
     }
 

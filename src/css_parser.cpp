@@ -42,88 +42,37 @@ namespace litehtml
         input = result;
     }
 
-    static const size_t kLargeSize = 50;
-    static void         remove_whitespace_large(css_token_vector& tokens, const keep_whitespace_fn& keep_whitespace);
-    static void         remove_whitespace_small(css_token_vector& tokens, const keep_whitespace_fn& keep_whitespace);
-
-    void remove_whitespace_large(css_token_vector& tokens, const keep_whitespace_fn& keep_whitespace)
+    void remove_whitespace_fast(css_token_vector& tokens, const keep_whitespace_fn& keep_whitespace)
     {
-        std::vector<int> keep_idx;
-        keep_idx.reserve(tokens.size());
-        for(int i = 0; i < static_cast<int>(tokens.size()); ++i)
+        size_t write_idx = 0;
+        for(size_t i = 0; i < tokens.size(); i++)
         {
-            auto& tok  = tokens[i];
-            bool  keep = true;
+            auto& tok = tokens[i];
+            bool keep = true;
             if(tok.type == ' ')
             {
                 const auto& left  = i > 0 ? tokens[i - 1] : css_token();
-                const auto& right = at(tokens, i + 1);
-                keep              = keep_whitespace && keep_whitespace(left, right);
+                const auto& right = (i + 1 < tokens.size()) ? tokens[i + 1] : css_token();
+                keep = keep_whitespace && keep_whitespace(left, right);
             } else if(tok.is_component_value())
             {
-                if(tok.value.size() > kLargeSize)
-                {
-                    remove_whitespace_large(tok.value, keep_whitespace);
-                } else
-                {
-                    remove_whitespace_small(tok.value, keep_whitespace);
-                }
+                remove_whitespace_fast(tok.value, keep_whitespace);
             }
             if(keep)
             {
-                keep_idx.push_back(i);
+                if(write_idx != i)
+                {
+                    tokens[write_idx] = std::move(tokens[i]);
+                }
+                write_idx++;
             }
         }
-
-        if(keep_idx.size() == tokens.size())
-        {
-            return;
-        }
-        css_token_vector tmp;
-        tmp.reserve(keep_idx.size());
-        for(auto idx : keep_idx)
-        {
-            tmp.push_back(tokens[idx]);
-        }
-        tokens.swap(tmp);
-    }
-
-    void remove_whitespace_small(css_token_vector& tokens, const keep_whitespace_fn& keep_whitespace)
-    {
-        for(int i = 0; i < static_cast<int>(tokens.size()); i++)
-        {
-            auto& tok = tokens[i];
-            if(tok.type == ' ')
-            {
-                const auto& left  = i > 0 ? tokens[i - 1] : css_token();
-                const auto& right = at(tokens, i + 1);
-                bool        keep  = keep_whitespace && keep_whitespace(left, right);
-                if(!keep)
-                {
-                    remove(tokens, i), i--;
-                }
-            } else if(tok.is_component_value())
-            {
-                if(tok.value.size() > kLargeSize)
-                {
-                    remove_whitespace_large(tok.value, keep_whitespace);
-                } else
-                {
-                    remove_whitespace_small(tok.value, keep_whitespace);
-                }
-            }
-        }
+        tokens.resize(write_idx);
     }
 
     void remove_whitespace(css_token_vector& tokens, const keep_whitespace_fn& keep_whitespace)
     {
-        if(tokens.size() > kLargeSize)
-        {
-            remove_whitespace_large(tokens, keep_whitespace);
-        } else
-        {
-            remove_whitespace_small(tokens, keep_whitespace);
-        }
+        remove_whitespace_fast(tokens, keep_whitespace);
     }
 
     void componentize(css_token_vector& tokens)

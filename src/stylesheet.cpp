@@ -3,9 +3,33 @@
 #include "css_parser.h"
 #include "document.h"
 #include "document_container.h"
+#include <mutex>
+#include <unordered_map>
+#include <type_traits>
+#include <algorithm>
 
 namespace litehtml
 {
+    static inline uint64_t FastCSSHash(const char* data, size_t len) {
+        uint64_t hash = 14695981039346656037ULL;
+        hash ^= (uint64_t)len;
+        hash *= 1099511628211ULL;
+        size_t sample_len = std::min(len, (size_t)128);
+        for (size_t i = 0; i < sample_len; i++) {
+            hash ^= (uint8_t)data[i];
+            hash *= 1099511628211ULL;
+        }
+        if (len > 128) {
+            for (size_t i = len - sample_len; i < len; i++) {
+                hash ^= (uint8_t)data[i];
+                hash *= 1099511628211ULL;
+            }
+        }
+        return hash;
+    }
+
+    static std::mutex g_css_cache_mutex;
+    static std::unordered_map<uint64_t, css_selector::vector> g_css_selector_cache;
 
     // ( <declaration> )  https://drafts.csswg.org/css-conditional-3/#typedef-supports-decl
     static bool eval_supports_declaration(const css_token_vector& tokens, document_container* container)
@@ -140,6 +164,19 @@ namespace litehtml
             doc->add_media_list(media);
         }
 
+        uint64_t css_hash = 0;
+        if constexpr (std::is_same_v<Input, std::string> || std::is_same_v<Input, const std::string&>) {
+            if (top_level && media == nullptr && !input.empty()) {
+                css_hash = FastCSSHash(input.data(), input.size());
+                std::lock_guard<std::mutex> lock(g_css_cache_mutex);
+                auto it = g_css_selector_cache.find(css_hash);
+                if (it != g_css_selector_cache.end()) {
+                    m_selectors.insert(m_selectors.end(), it->second.begin(), it->second.end());
+                    return;
+                }
+            }
+        }
+
         // To parse a CSS stylesheet, first parse a stylesheet.
         auto rules          = css_parser::parse_stylesheet(input, top_level);
         bool import_allowed = top_level;
@@ -232,6 +269,12 @@ namespace litehtml
             default:
                 css_parse_error("unrecognized rule @" + rule->name);
             }
+        }
+
+        if(css_hash != 0 && top_level && media == nullptr)
+        {
+            std::lock_guard<std::mutex> lock(g_css_cache_mutex);
+            g_css_selector_cache[css_hash] = m_selectors;
         }
     }
 
