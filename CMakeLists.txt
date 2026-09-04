@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.11)
 project(litehtml LANGUAGES C CXX)
 
 option(LITEHTML_BUILD_TESTING "enable testing for litehtml" OFF)
+option(LITEHTML_BUILD_REGRESSION_TESTS "build litehtml's self-contained regression tests" OFF)
 option(LITEHTML_ENABLE_LINT "enable linting for litehtml" ON)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -210,6 +211,14 @@ target_include_directories(${PROJECT_NAME} PRIVATE include/${PROJECT_NAME})
 
 # Gumbo
 target_link_libraries(${PROJECT_NAME} PUBLIC gumbo)
+
+if(LITEHTML_BUILD_REGRESSION_TESTS)
+	enable_testing()
+	add_executable(litehtml_inline_block_metrics_test tests/inline_block_metrics.cpp)
+	target_link_libraries(litehtml_inline_block_metrics_test PRIVATE ${PROJECT_NAME})
+	target_compile_features(litehtml_inline_block_metrics_test PRIVATE cxx_std_17)
+	add_test(NAME litehtml_inline_block_metrics COMMAND litehtml_inline_block_metrics_test)
+endif()
 
 # install and export
 install(TARGETS ${PROJECT_NAME}

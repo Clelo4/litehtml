@@ -228,9 +228,15 @@ litehtml::rendered_width litehtml::render_item_block::_render(pixel_t x, pixel_t
     } else
     {
         m_pos.width = ret_width;
-        if(self_size.width.type == containing_block_context::cbc_value_type_absolute && ret_width > self_size.width)
+        // For content-based sizing, an explicit width still resolves the
+        // inline-block's used width. The former code adjusted only the value
+        // returned to the parent and left the painted box at its content
+        // width, which made nested inline-block sizing inconsistent.
+        if(self_size.width.type == containing_block_context::cbc_value_type_absolute &&
+           m_pos.width != self_size.render_width)
         {
-            ret_width = self_size.width;
+            m_pos.width       = self_size.render_width;
+            requires_rerender = true;
         }
     }
 
@@ -269,6 +275,15 @@ litehtml::rendered_width litehtml::render_item_block::_render(pixel_t x, pixel_t
         }
 
         _render_content(x, y, true, self_size.new_width(m_pos.width), fmt_ctx);
+    }
+
+    // The parent of an inline-block consumes the returned natural width to
+    // advance its line box. Once content sizing has applied explicit, minimum,
+    // or maximum width constraints, report that resolved used width rather
+    // than the stale pre-constraint content measurement.
+    if((containing_block_size.size_mode & containing_block_context::size_mode_content) != 0)
+    {
+        ret_width = m_pos.width;
     }
 
     // Set block height

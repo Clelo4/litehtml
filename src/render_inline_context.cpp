@@ -251,7 +251,13 @@ void litehtml::render_item_inline_context::place_inline(std::unique_ptr<line_box
     {
         if(item->get_el()->src_el()->is_inline_box())
         {
-            pixel_t min_rendered_width = item->get_el()->render(0_px, 0_px, self_size, fmt_ctx).natural_width;
+            // Inline-level replaced and atomic boxes use shrink-to-fit sizing.
+            // Measure them in content mode so nested inline-blocks propagate
+            // their resolved intrinsic width instead of the available line
+            // width or their unconstrained text width.
+            const auto intrinsic_size = self_size.new_width(
+                self_size.render_width, containing_block_context::size_mode_content);
+            pixel_t min_rendered_width = item->get_el()->render(0_px, 0_px, intrinsic_size, fmt_ctx).natural_width;
             if(min_rendered_width < item->get_el()->width() &&
                item->get_el()->src_el()->css().get_width().is_predefined())
             {
