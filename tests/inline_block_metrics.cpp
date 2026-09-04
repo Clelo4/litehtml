@@ -210,13 +210,65 @@ namespace
         }
         return widths_preserved && following_text_is_not_overlapped;
     }
+
+    bool inline_block_intrinsic_measurement_preserves_explicit_height_and_box_model()
+    {
+        metrics_test_container container;
+        const char* html = R"(
+            <style>
+                #control {
+                    display: inline-block;
+                    width: 32px;
+                    height: 20px;
+                    margin-right: 7px;
+                    padding: 4px 6px;
+                    border: 2px solid black;
+                    background: black;
+                }
+            </style>
+            <div>
+                <span id="control"></span><span id="following">definition</span>
+            </div>)";
+        auto document = litehtml::document::createFromString(html, &container);
+        if(!document)
+        {
+            return false;
+        }
+        document->render(320, litehtml::render_all);
+
+        auto control   = document->root()->select_one("#control");
+        auto following = document->root()->select_one("#following");
+        if(!control || !following || following->children().empty())
+        {
+            return false;
+        }
+
+        const auto control_box   = control->get_placement();
+        const auto following_box = following->children().front()->get_placement();
+        const bool dimensions_preserved = control_box.width.value() >= 31.5f && control_box.width.value() <= 32.5f &&
+                                          control_box.height.value() >= 19.5f && control_box.height.value() <= 20.5f;
+        // Placement is the content box, so only the right-side padding and
+        // border separate its right edge from the following inline content.
+        const float minimum_following_x = control_box.x.value() + 32.0f + 6.0f + 2.0f + 7.0f;
+        const bool box_model_preserved = following_box.x.value() >= minimum_following_x - 0.5f;
+        if(!dimensions_preserved || !box_model_preserved)
+        {
+            std::cerr << "inline-block explicit dimensions during intrinsic measurement failed: width="
+                      << control_box.width.value() << " height=" << control_box.height.value()
+                      << " control_x=" << control_box.x.value()
+                      << " following_x=" << following_box.x.value()
+                      << " expected_following_x=" << minimum_following_x << '\n';
+        }
+        return dimensions_preserved && box_model_preserved;
+    }
 } // namespace
 
 int main()
 {
     return nested_inline_block_reserves_its_resolved_width() &&
                    inline_block_honors_explicit_width_during_intrinsic_measurement() &&
-                   nested_inline_block_inside_an_inline_container_reserves_space()
+                   nested_inline_block_inside_an_inline_container_reserves_space() &&
+                   inline_block_intrinsic_measurement_preserves_explicit_height_and_box_model()
                ? EXIT_SUCCESS
                : EXIT_FAILURE;
 }

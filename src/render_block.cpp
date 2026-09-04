@@ -287,8 +287,7 @@ litehtml::rendered_width litehtml::render_item_block::_render(pixel_t x, pixel_t
     }
 
     // Set block height
-    if(self_size.height.type != containing_block_context::cbc_value_type_auto &&
-       ((containing_block_size.size_mode & containing_block_context::size_mode_content) == 0))
+    if(self_size.height.type != containing_block_context::cbc_value_type_auto)
     {
         // TODO: Something wrong here
         // Percentage height from undefined containing block height is usually <= 0
@@ -309,14 +308,6 @@ litehtml::rendered_width litehtml::render_item_block::_render(pixel_t x, pixel_t
         pixel_t floats_height = fmt_ctx->get_floats_height();
         m_pos.height          = std::max(floats_height, m_pos.height);
     }
-    if((containing_block_size.size_mode & containing_block_context::size_mode_content) != 0)
-    {
-        if(self_size.height.type == containing_block_context::cbc_value_type_absolute)
-        {
-            m_pos.height = std::min<pixel_t>(m_pos.height, self_size.height);
-        }
-    }
-
     // Fix height with min-height attribute
     if(self_size.min_height.type != containing_block_context::cbc_value_type_none)
     {
