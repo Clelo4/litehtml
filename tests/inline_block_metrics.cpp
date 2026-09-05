@@ -273,6 +273,46 @@ namespace
         return dimensions_preserved && box_model_preserved;
     }
 
+    bool length_vertical_align_shifts_inline_boxes_and_resolves_percentages()
+    {
+        metrics_test_container container;
+        const char* html = R"(
+            <style>
+                .control { display: inline-block; width: 24px; height: 28px; }
+                #lowered { vertical-align: -6px; }
+                #raised { line-height: 24px; vertical-align: 25%; }
+            </style>
+            <div><span id="reference" class="control"></span><span id="lowered" class="control"></span><span id="raised" class="control"></span><span>phonetic</span></div>)";
+        auto document = litehtml::document::createFromString(html, &container);
+        if(!document)
+        {
+            return false;
+        }
+        document->render(320, litehtml::render_all);
+
+        auto reference = document->root()->select_one("#reference");
+        auto lowered   = document->root()->select_one("#lowered");
+        auto raised    = document->root()->select_one("#raised");
+        if(!reference || !lowered || !raised)
+        {
+            return false;
+        }
+
+        const auto reference_box = reference->get_placement();
+        const auto lowered_box   = lowered->get_placement();
+        const bool length_parsed = std::abs((lowered->css().get_vertical_align_offset() - litehtml::pixel_t(-6)).value()) <= 0.5f;
+        const bool percentage_resolved = std::abs((raised->css().get_vertical_align_offset() - litehtml::pixel_t(6)).value()) <= 0.5f;
+        const bool lowered_box_shifted =
+            std::abs((lowered_box.y - reference_box.y - litehtml::pixel_t(6)).value()) <= 0.5f;
+        if(!length_parsed || !percentage_resolved || !lowered_box_shifted)
+        {
+            std::cerr << "length vertical-align failed: offset=" << lowered->css().get_vertical_align_offset().value()
+                      << " percent=" << raised->css().get_vertical_align_offset().value()
+                      << " shift=" << (lowered_box.y - reference_box.y).value() << '\n';
+        }
+        return length_parsed && percentage_resolved && lowered_box_shifted;
+    }
+
     bool absolute_generated_content_uses_inline_static_baseline()
     {
         metrics_test_container container;
@@ -371,6 +411,7 @@ int main()
                    inline_block_honors_explicit_width_during_intrinsic_measurement() &&
                    nested_inline_block_inside_an_inline_container_reserves_space() &&
                    inline_block_intrinsic_measurement_preserves_explicit_height_and_box_model() &&
+                   length_vertical_align_shifts_inline_boxes_and_resolves_percentages() &&
                    absolute_generated_content_uses_inline_static_baseline() &&
                    absolute_inline_content_uses_static_baseline()
                ? EXIT_SUCCESS

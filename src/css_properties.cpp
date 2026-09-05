@@ -29,8 +29,8 @@ void litehtml::css_properties::compute(const html_tag* el, const document::ptr& 
     m_overflow = static_cast<overflow>(el->get_property<int>(_overflow_, false, overflow_visible, offset(m_overflow)));
     m_text_align =
         static_cast<text_align>(el->get_property<int>(_text_align_, true, text_align_left, offset(m_text_align)));
-    m_vertical_align = static_cast<vertical_align>(
-        el->get_property<int>(_vertical_align_, false, va_baseline, offset(m_vertical_align)));
+    m_vertical_align = el->get_property<vertical_align_value>(
+        _vertical_align_, true, vertical_align_value{}, offset(m_vertical_align));
     m_text_transform = static_cast<text_transform>(
         el->get_property<int>(_text_transform_, true, text_transform_none, offset(m_text_transform)));
     m_white_space =
@@ -267,6 +267,17 @@ void litehtml::css_properties::compute(const html_tag* el, const document::ptr& 
         m_line_height.computed_value =
             doc->to_pixels(m_line_height.css_value, m_font_metrics, m_font_metrics.font_size);
         m_line_height.css_value = static_cast<float>(m_line_height.computed_value);
+    }
+
+    // A percentage vertical-align offset resolves against the element's own
+    // computed line-height.  Convert every accepted unit to pixels once so
+    // line layout uses a stable baseline shift and inherited values do not get
+    // reinterpreted in a descendant's coordinate system.
+    if(!m_vertical_align.offset.is_predefined())
+    {
+        m_vertical_align.offset.set_value(
+            static_cast<float>(doc->to_pixels(m_vertical_align.offset, m_font_metrics, m_line_height.computed_value)),
+            css_units_px);
     }
 
     m_list_style_type = static_cast<list_style_type>(
@@ -658,7 +669,9 @@ std::vector<std::tuple<std::string, std::string>> litehtml::css_properties::dump
     ret.emplace_back("appearance", css_values(appearance_strings).value_by_index(m_appearance));
     ret.emplace_back("box_sizing", css_values(box_sizing_strings).value_by_index(m_box_sizing));
     ret.emplace_back("z_index", m_z_index.to_string());
-    ret.emplace_back("vertical_align", css_values(vertical_align_strings).value_by_index(m_vertical_align));
+    ret.emplace_back("vertical_align", m_vertical_align.offset.val() != 0.0f
+                                        ? m_vertical_align.offset.to_string()
+                                        : css_values(vertical_align_strings).value_by_index(m_vertical_align.keyword));
     ret.emplace_back("float", css_values(element_float_strings).value_by_index(m_float));
     ret.emplace_back("clear", css_values(element_clear_strings).value_by_index(m_clear));
     ret.emplace_back("margins", m_css_margins.to_string());

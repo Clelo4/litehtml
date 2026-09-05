@@ -221,7 +221,6 @@ namespace litehtml
         case _overflow_:
 
         case _text_align_:
-        case _vertical_align_:
         case _text_transform_:
         case _white_space_:
 
@@ -248,6 +247,24 @@ namespace litehtml
             if(auto index = m_valid_values.at(name).value_index(ident); index.has_value())
             {
                 add_parsed_property(name, property_value(*index, important));
+            }
+            break;
+
+        // vertical-align = <baseline-position> | <length-percentage>
+        // https://drafts.csswg.org/css-inline/#propdef-vertical-align
+        // Store both forms in one value so CSS inheritance cannot combine a
+        // parent's length shift with a child's keyword (or vice versa).
+        case _vertical_align_:
+            {
+                vertical_align_value vertical_align;
+                if(auto index = m_valid_values.at(name).value_index(ident); index.has_value())
+                {
+                    vertical_align.keyword = static_cast<litehtml::vertical_align>(*index);
+                } else if(!vertical_align.offset.from_token(val, f_length_percentage))
+                {
+                    break;
+                }
+                add_parsed_property(name, property_value(vertical_align, important));
             }
             break;
 

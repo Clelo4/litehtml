@@ -116,6 +116,16 @@ namespace litehtml
         }
         return 0_px;
     }
+
+    // `vertical-align` accepts either an alignment keyword or a baseline
+    // shift expressed as a length/percentage.  This type lives next to
+    // css_length so both the style parser and computed-style storage can use
+    // it without creating an include dependency between their headers.
+    struct vertical_align_value
+    {
+        vertical_align keyword = va_baseline;
+        css_length     offset;
+    };
 } // namespace litehtml
 
 #endif // LITEHTML_CSS_LENGTH_H

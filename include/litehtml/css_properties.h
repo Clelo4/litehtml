@@ -5,6 +5,7 @@
 #include "background.h"
 #include "borders.h"
 #include "css_margins.h"
+#include "css_length.h"
 #include "css_offsets.h"
 #include "types.h"
 
@@ -45,7 +46,7 @@ namespace litehtml
         appearance            m_appearance     = appearance_none;
         box_sizing            m_box_sizing     = box_sizing_content_box;
         css_length            m_z_index        = 0;
-        vertical_align        m_vertical_align = va_baseline;
+        vertical_align_value  m_vertical_align;
         element_float         m_float          = float_none;
         element_clear         m_clear          = clear_none;
         css_margins           m_css_margins;
@@ -144,6 +145,7 @@ namespace litehtml
 
         vertical_align get_vertical_align() const;
         void           set_vertical_align(vertical_align mVerticalAlign);
+        pixel_t        get_vertical_align_offset() const;
 
         element_float get_float() const;
         void          set_float(element_float mFloat);
@@ -355,12 +357,18 @@ namespace litehtml
 
     inline vertical_align css_properties::get_vertical_align() const
     {
-        return m_vertical_align;
+        return m_vertical_align.keyword;
     }
 
     inline void css_properties::set_vertical_align(vertical_align mVerticalAlign)
     {
-        m_vertical_align = mVerticalAlign;
+        m_vertical_align.keyword = mVerticalAlign;
+        m_vertical_align.offset  = 0;
+    }
+
+    inline pixel_t css_properties::get_vertical_align_offset() const
+    {
+        return static_cast<pixel_t>(m_vertical_align.offset.val());
     }
 
     inline element_float css_properties::get_float() const

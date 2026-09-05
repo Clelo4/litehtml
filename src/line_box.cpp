@@ -434,6 +434,10 @@ std::list<std::unique_ptr<litehtml::line_box_item>> litehtml::line_box::finish(
             }
             current_context.fm          = lbi->get_el()->css().get_font_metrics();
             current_context.line_height = lbi->get_el()->css().line_height().computed_value;
+            // A positive length raises the inline box's baseline; a negative
+            // one lowers it.  Keep the shift on the inherited inline context
+            // as well, so inline spans and their contents move as one box.
+            current_context.baseline -= lbi->get_el()->css().get_vertical_align_offset();
         }
 
         pixel_t bl                = current_context.baseline;
@@ -480,6 +484,10 @@ std::list<std::unique_ptr<litehtml::line_box_item>> litehtml::line_box::finish(
         }
         if(!ignore)
         {
+            // Length/percentage vertical-align values are baseline shifts,
+            // not keyword alignments.  They apply to any inline-level box,
+            // including inline-block controls and replaced elements.
+            bl -= lbi->get_el()->css().get_vertical_align_offset();
             lbi->pos().y = bl - lbi->get_el()->get_last_baseline() + content_offset;
         }
 
