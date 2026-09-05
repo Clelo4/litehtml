@@ -273,6 +273,60 @@ namespace
         return dimensions_preserved && box_model_preserved;
     }
 
+    bool full_width_inline_blocks_wrap_after_inline_dictionary_content()
+    {
+        metrics_test_container container;
+        const char* html = R"(
+            <style>
+                .entry { margin-left: 22px; }
+                .collapse {
+                    display: inline-block;
+                    width: 100%;
+                    margin: 6px 0;
+                    border-left: 3px solid black;
+                }
+            </style>
+            <div class="entry">
+                <span id="prefix">dictionary note</span>
+                <div class="collapse" id="first">First disclosure</div>
+                <div class="collapse" id="second">Second disclosure</div>
+            </div>)";
+        auto document = litehtml::document::createFromString(html, &container);
+        if(!document)
+        {
+            return false;
+        }
+        document->render(320, litehtml::render_all);
+
+        auto entry  = document->root()->select_one(".entry");
+        auto prefix = document->root()->select_one("#prefix");
+        auto first  = document->root()->select_one("#first");
+        auto second = document->root()->select_one("#second");
+        if(!entry || !prefix || !first || !second)
+        {
+            return false;
+        }
+
+        const auto entry_box  = entry->get_placement();
+        const auto prefix_box = prefix->get_placement();
+        const auto first_box  = first->get_placement();
+        const auto second_box = second->get_placement();
+        const bool uses_entry_width = first_box.width.value() >= entry_box.width.value() - 0.5f &&
+                                      second_box.width.value() >= entry_box.width.value() - 0.5f;
+        const bool first_starts_on_a_new_line = first_box.y.value() >=
+                                                 prefix_box.y.value() + prefix_box.height.value() - 0.5f;
+        const bool second_starts_on_a_new_line = std::abs(second_box.x.value() - first_box.x.value()) <= 0.5f &&
+                                                 second_box.y.value() > first_box.y.value();
+        if(!uses_entry_width || !first_starts_on_a_new_line || !second_starts_on_a_new_line)
+        {
+            std::cerr << "full-width inline-block line placement failed: entry_width=" << entry_box.width.value()
+                      << " first=(" << first_box.x.value() << ", " << first_box.y.value() << ", "
+                      << first_box.width.value() << ") second=(" << second_box.x.value() << ", "
+                      << second_box.y.value() << ", " << second_box.width.value() << ")\n";
+        }
+        return uses_entry_width && first_starts_on_a_new_line && second_starts_on_a_new_line;
+    }
+
     bool length_vertical_align_shifts_inline_boxes_and_resolves_percentages()
     {
         metrics_test_container container;
@@ -411,6 +465,7 @@ int main()
                    inline_block_honors_explicit_width_during_intrinsic_measurement() &&
                    nested_inline_block_inside_an_inline_container_reserves_space() &&
                    inline_block_intrinsic_measurement_preserves_explicit_height_and_box_model() &&
+                   full_width_inline_blocks_wrap_after_inline_dictionary_content() &&
                    length_vertical_align_shifts_inline_boxes_and_resolves_percentages() &&
                    absolute_generated_content_uses_inline_static_baseline() &&
                    absolute_inline_content_uses_static_baseline()

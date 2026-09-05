@@ -228,11 +228,13 @@ litehtml::rendered_width litehtml::render_item_block::_render(pixel_t x, pixel_t
     } else
     {
         m_pos.width = ret_width;
-        // For content-based sizing, an explicit width still resolves the
-        // inline-block's used width. The former code adjusted only the value
-        // returned to the parent and left the painted box at its content
-        // width, which made nested inline-block sizing inconsistent.
-        if(self_size.width.type == containing_block_context::cbc_value_type_absolute &&
+        // For content-based sizing, a definite explicit width still resolves
+        // the inline-block's used width. This includes percentages once the
+        // containing block has a known width. Leaving a resolved percentage
+        // at its text width lets a `width: 100%` inline-block remain after
+        // preceding inline content instead of beginning a new line.
+        if((self_size.width.type == containing_block_context::cbc_value_type_absolute ||
+            self_size.width.type == containing_block_context::cbc_value_type_percentage) &&
            m_pos.width != self_size.render_width)
         {
             m_pos.width       = self_size.render_width;
