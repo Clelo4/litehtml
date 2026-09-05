@@ -156,20 +156,28 @@ litehtml::rendered_width litehtml::render_item_block_context::_render_content(pi
 
 litehtml::pixel_t litehtml::render_item_block_context::get_first_baseline()
 {
-    if(m_children.empty())
+    for(const auto& item : m_children)
     {
-        return height() - margin_bottom();
+        auto position = item->src_el()->css().get_position();
+        if(position == element_position_absolute || position == element_position_fixed)
+        {
+            continue;
+        }
+        return content_offset_top() + item->top() + item->get_first_baseline();
     }
-    const auto& item = m_children.front();
-    return content_offset_top() + item->top() + item->get_first_baseline();
+    return height() - margin_bottom();
 }
 
 litehtml::pixel_t litehtml::render_item_block_context::get_last_baseline()
 {
-    if(m_children.empty())
+    for(auto item = m_children.rbegin(); item != m_children.rend(); ++item)
     {
-        return height() - margin_bottom();
+        auto position = (*item)->src_el()->css().get_position();
+        if(position == element_position_absolute || position == element_position_fixed)
+        {
+            continue;
+        }
+        return content_offset_top() + (*item)->top() + (*item)->get_last_baseline();
     }
-    const auto& item = m_children.back();
-    return content_offset_top() + item->top() + item->get_last_baseline();
+    return height() - margin_bottom();
 }

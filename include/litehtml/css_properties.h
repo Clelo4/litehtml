@@ -37,6 +37,10 @@ namespace litehtml
         overflow              m_overflow       = overflow_visible;
         white_space           m_white_space    = white_space_normal;
         style_display         m_display        = display_inline;
+        // The used display is blockified for absolutely positioned boxes, but
+        // their static position is still determined by the original inline or
+        // block participation in normal flow.
+        style_display         m_static_display = display_inline;
         visibility            m_visibility     = visibility_visible;
         appearance            m_appearance     = appearance_none;
         box_sizing            m_box_sizing     = box_sizing_content_box;
@@ -123,6 +127,8 @@ namespace litehtml
 
         style_display get_display() const;
         void          set_display(style_display mDisplay);
+
+        style_display get_static_display() const;
 
         visibility get_visibility() const;
         void       set_visibility(visibility mVisibility);
@@ -300,6 +306,11 @@ namespace litehtml
     inline void css_properties::set_display(style_display mDisplay)
     {
         m_display = mDisplay;
+    }
+
+    inline style_display css_properties::get_static_display() const
+    {
+        return m_static_display;
     }
 
     inline visibility css_properties::get_visibility() const

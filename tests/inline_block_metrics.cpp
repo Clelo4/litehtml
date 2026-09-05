@@ -1,14 +1,24 @@
 #include <litehtml.h>
 
+#include <cmath>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <vector>
 
 namespace
 {
     class metrics_test_container final : public litehtml::document_container
     {
       public:
+        struct drawn_text
+        {
+            std::string        text;
+            litehtml::position pos;
+        };
+
+        std::vector<drawn_text> drawn_texts;
+
         litehtml::uint_ptr create_font(const litehtml::font_description& descr, const litehtml::document*,
                                        litehtml::font_metrics* metrics) override
         {
@@ -33,9 +43,10 @@ namespace
             return static_cast<int>(std::strlen(text)) * 8;
         }
 
-        void draw_text(litehtml::uint_ptr, const char*, litehtml::uint_ptr, litehtml::web_color,
-                       const litehtml::position&) override
+        void draw_text(litehtml::uint_ptr, const char* text, litehtml::uint_ptr, litehtml::web_color,
+                       const litehtml::position& pos) override
         {
+            drawn_texts.push_back({text ? text : "", pos});
         }
 
         litehtml::pixel_t pt_to_px(float pt) const override { return pt * 96 / 72; }
@@ -261,6 +272,97 @@ namespace
         }
         return dimensions_preserved && box_model_preserved;
     }
+
+    bool absolute_generated_content_uses_inline_static_baseline()
+    {
+        metrics_test_container container;
+        const char* html = R"(
+            <style>
+                .entry { margin-left: 22px; }
+                ol { counter-reset: item; list-style: none; margin: 0; padding: 0; }
+                li::before {
+                    content: counter(item) " ";
+                    counter-increment: item;
+                    font-size: 14px;
+                    margin-left: -1.3rem;
+                    position: absolute;
+                    text-align: right;
+                }
+                .badge { display: inline-block; width: 45px; height: 23px; vertical-align: middle; }
+            </style>
+            <div class="entry"><ol><li><span class="badge">A1</span> <span>definition</span></li></ol></div>)";
+        auto document = litehtml::document::createFromString(html, &container);
+        if(!document)
+        {
+            return false;
+        }
+        document->render(320, litehtml::render_all);
+        document->draw(0, 0, 0, nullptr);
+
+        const metrics_test_container::drawn_text* marker = nullptr;
+        const metrics_test_container::drawn_text* definition = nullptr;
+        for(const auto& drawn : container.drawn_texts)
+        {
+            if(drawn.text == "1") marker = &drawn;
+            if(drawn.text == "definition") definition = &drawn;
+        }
+        if(!marker || !definition)
+        {
+            return false;
+        }
+
+        const auto marker_baseline = marker->pos.y + litehtml::pixel_t(14) * 3 / 4;
+        const auto definition_baseline = definition->pos.y + litehtml::pixel_t(16) * 3 / 4;
+        const bool baselines_aligned =
+            std::abs((marker_baseline - definition_baseline).value()) <= 0.5f;
+        if(!baselines_aligned)
+        {
+            std::cerr << "absolute generated content static baseline failed: marker=" << marker_baseline.value()
+                      << " definition=" << definition_baseline.value() << '\n';
+        }
+        return baselines_aligned;
+    }
+
+    bool absolute_inline_content_uses_static_baseline()
+    {
+        metrics_test_container container;
+        const char* html = R"(
+            <style>
+                #marker { position: absolute; font-size: 14px; margin-left: -1.3rem; }
+                #badge { display: inline-block; width: 45px; height: 23px; vertical-align: middle; }
+            </style>
+            <div><span id="marker">1</span><span id="badge">A1</span> <span>definition</span></div>)";
+        auto document = litehtml::document::createFromString(html, &container);
+        if(!document)
+        {
+            return false;
+        }
+        document->render(320, litehtml::render_all);
+        document->draw(0, 0, 0, nullptr);
+
+        const metrics_test_container::drawn_text* marker = nullptr;
+        const metrics_test_container::drawn_text* definition = nullptr;
+        for(const auto& drawn : container.drawn_texts)
+        {
+            if(drawn.text == "1") marker = &drawn;
+            if(drawn.text == "definition") definition = &drawn;
+        }
+        if(!marker || !definition)
+        {
+            return false;
+        }
+
+        const auto marker_baseline = marker->pos.y + litehtml::pixel_t(14) * 3 / 4;
+        const auto definition_baseline = definition->pos.y + litehtml::pixel_t(16) * 3 / 4;
+        const bool baselines_aligned =
+            std::abs((marker_baseline - definition_baseline).value()) <= 0.5f;
+        if(!baselines_aligned)
+        {
+            std::cerr << "absolute inline static baseline failed: marker=" << marker_baseline.value()
+                      << " definition=" << definition_baseline.value() << '\n';
+        }
+        return baselines_aligned;
+    }
 } // namespace
 
 int main()
@@ -268,7 +370,9 @@ int main()
     return nested_inline_block_reserves_its_resolved_width() &&
                    inline_block_honors_explicit_width_during_intrinsic_measurement() &&
                    nested_inline_block_inside_an_inline_container_reserves_space() &&
-                   inline_block_intrinsic_measurement_preserves_explicit_height_and_box_model()
+                   inline_block_intrinsic_measurement_preserves_explicit_height_and_box_model() &&
+                   absolute_generated_content_uses_inline_static_baseline() &&
+                   absolute_inline_content_uses_static_baseline()
                ? EXIT_SUCCESS
                : EXIT_FAILURE;
 }

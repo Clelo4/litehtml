@@ -5,6 +5,56 @@
 #include <algorithm>
 #include <typeinfo>
 
+namespace
+{
+    bool static_position_is_inline_level(litehtml::style_display display)
+    {
+        return display == litehtml::display_inline || display == litehtml::display_inline_block ||
+               display == litehtml::display_inline_table || display == litehtml::display_inline_flex;
+    }
+
+    std::tuple<std::shared_ptr<litehtml::render_item>, bool> static_position_anchor(
+        const std::shared_ptr<litehtml::render_item>& positioned)
+    {
+        auto parent = positioned->parent();
+        if(!parent)
+        {
+            return {nullptr, false};
+        }
+
+        std::shared_ptr<litehtml::render_item> preceding;
+        bool                                   found_positioned = false;
+        for(const auto& sibling : parent->children())
+        {
+            if(sibling == positioned)
+            {
+                found_positioned = true;
+                continue;
+            }
+
+            const auto position = sibling->src_el()->css().get_position();
+            if(sibling->src_el()->css().get_display() == litehtml::display_none ||
+               position == litehtml::element_position_absolute || position == litehtml::element_position_fixed)
+            {
+                continue;
+            }
+
+            if(found_positioned)
+            {
+                // A generated or regular inline box at the start of a flow
+                // uses the first following in-flow baseline as its static
+                // position anchor.
+                return {sibling, true};
+            }
+            preceding = sibling;
+        }
+
+        // At the end of a flow the hypothetical inline box follows the last
+        // in-flow sibling, so it shares that sibling's final baseline.
+        return {preceding, false};
+    }
+} // namespace
+
 litehtml::render_item::render_item(std::shared_ptr<element> _src_el) :
     m_element(std::move(_src_el))
 {
@@ -327,6 +377,24 @@ void litehtml::render_item::render_positioned(render_type rt)
 
             pixel_t el_static_x = el->m_pos.x + el_static_offset_x;
             pixel_t el_static_y = el->m_pos.y + el_static_offset_y;
+
+            // Blockification changes the used display of absolute/fixed boxes,
+            // but not their hypothetical normal-flow position.  Use the
+            // nearest in-flow sibling's line baseline when an originally
+            // inline-level box has auto vertical offsets.  This keeps regular
+            // absolute inline content and ::before/::after counters aligned
+            // with the text line that establishes their static position.
+            if(css_top.is_predefined() && css_bottom.is_predefined() &&
+               static_position_is_inline_level(el->src_el()->css().get_static_display()))
+            {
+                auto [anchor, use_first_baseline] = static_position_anchor(el);
+                if(anchor)
+                {
+                    pixel_t anchor_baseline = anchor->top() +
+                        (use_first_baseline ? anchor->get_first_baseline() : anchor->get_last_baseline());
+                    el_static_y += anchor_baseline - el->m_pos.y - el->get_first_baseline();
+                }
+            }
             // Calculate vertical position
             // https://www.w3.org/TR/CSS22/visudet.html#abs-non-replaced-height
             // 10.6.4 Absolutely positioned, non-replaced elements
